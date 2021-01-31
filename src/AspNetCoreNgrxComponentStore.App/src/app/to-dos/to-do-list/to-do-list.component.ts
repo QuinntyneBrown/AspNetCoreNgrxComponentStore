@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
 import { replace } from '@core/replace';
 import { DialogService } from '@shared/dialog.service';
@@ -7,20 +7,13 @@ import { map, takeUntil, tap } from 'rxjs/operators';
 import { ToDo } from '../to-do';
 import { ToDoDetailComponent } from '../to-do-detail/to-do-detail.component';
 import { ToDoService } from '../to-do.service';
-import { ComponentStore } from '@ngrx/component-store';
 import { pluckOut } from '@core/pluck-out';
-
-export interface IToDoListState {
-  dataSource: MatTableDataSource<ToDo>;
-}
 
 @Component({
   selector: 'app-to-do-list',
   templateUrl: './to-do-list.component.html',
   styleUrls: ['./to-do-list.component.scss'],
-  providers: [
-    ComponentStore
-  ]
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ToDoListComponent implements OnDestroy {
 
@@ -37,9 +30,7 @@ export class ToDoListComponent implements OnDestroy {
   ])
   .pipe(
     map(([toDos, columnsToDisplay]) => {
-
       this._toDos$.next(toDos);
-
       return {
         dataSource$: this._toDos$.pipe(
           map(x => new MatTableDataSource(x))),
@@ -55,9 +46,7 @@ export class ToDoListComponent implements OnDestroy {
 
   public edit(toDo: ToDo) {
     const component = this._dialogService.open<ToDoDetailComponent>(ToDoDetailComponent);
-
     component.toDo$.next(toDo);    
-
     component.saved
     .pipe(
       takeUntil(this._destroyed),
@@ -74,17 +63,13 @@ export class ToDoListComponent implements OnDestroy {
     .pipe(
       takeUntil(this._destroyed),
       tap(x => {
-        this._toDos$.value.push(x);
-        this._toDos$.next(this._toDos$.value);
+        this._toDos$.next([...this._toDos$.value, x]);
       })
     ).subscribe();
   }
 
-  public delete(toDo) {
-    const toDos = pluckOut({ items: this._toDos$.value, value: toDo, key: "toDoId" });
-    
-    this._toDos$.next(toDos);
-
+  public delete(toDo: ToDo) {    
+    this._toDos$.next(pluckOut({ items: this._toDos$.value, value: toDo, key: "toDoId" }));
     this._toDoService.remove({ toDo }).pipe(
       takeUntil(this._destroyed) 
     ).subscribe();
