@@ -2,25 +2,49 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit } from '@angular/
 import { MatTableDataSource } from '@angular/material/table';
 import { replace } from '@core/replace';
 import { DialogService } from '@shared/dialog.service';
-import { BehaviorSubject, combineLatest, Observable, of, Subject } from 'rxjs';
+import { combineLatest, Observable, of, Subject } from 'rxjs';
 import { map, takeUntil, tap } from 'rxjs/operators';
 import { ToDo } from '../to-do';
 import { ToDoDetailComponent } from '../to-do-detail/to-do-detail.component';
 import { ToDoService } from '../to-do.service';
 import { pluckOut } from '@core/pluck-out';
+import { ComponentStore } from '@ngrx/component-store';
 
 @Component({
   selector: 'app-to-do-list',
   templateUrl: './to-do-list.component.html',
   styleUrls: ['./to-do-list.component.scss'],
+  providers: [
+    ComponentStore
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ToDoListComponent implements OnDestroy {
 
   private readonly _destroyed: Subject<void> = new Subject();
 
-  private _toDos$: BehaviorSubject<ToDo[]> = new BehaviorSubject(undefined);
+  private readonly setToDos = this._componentStore.updater((state, value: ToDo[]) => ({ ...state, toDos: value }));
 
+  private readonly createToDo = this._componentStore.updater((state: { toDos: ToDo[] },toDo: ToDo) => {    
+    state.toDos.push(toDo);
+    return {
+      toDos: state.toDos
+    }
+  });
+
+  private readonly updateToDo = this._componentStore.updater((state: { toDos: ToDo[] },toDo: ToDo) => {    
+    return {
+      toDos: replace({ items: state.toDos, value: toDo, key: "toDoId" })
+    }
+  });
+
+  private readonly deleteToDo = this._componentStore.updater((state: { toDos: ToDo[] },toDo: ToDo) => {    
+    return {
+      toDos: pluckOut({ items: state.toDos, value: toDo, key: "toDoId" })
+    }
+  });
+
+  
   public readonly vm$: Observable<{
     dataSource$: Observable<MatTableDataSource<ToDo>>,
     columnsToDisplay: string[]
@@ -30,10 +54,14 @@ export class ToDoListComponent implements OnDestroy {
   ])
   .pipe(
     map(([toDos, columnsToDisplay]) => {
-      this._toDos$.next(toDos);
+
+      this.setToDos(toDos);
+
       return {
-        dataSource$: this._toDos$.pipe(
-          map(x => new MatTableDataSource(x))),
+        dataSource$: this._componentStore.select((state) => ({
+          toDos: state.toDos,
+        })).pipe(
+          map(x => new MatTableDataSource(x.toDos))),
         columnsToDisplay
       }
     })
@@ -41,8 +69,12 @@ export class ToDoListComponent implements OnDestroy {
 
   constructor(
     private readonly _toDoService: ToDoService,
-    private readonly _dialogService: DialogService
-  ) { }
+    private readonly _dialogService: DialogService,
+    private readonly _componentStore: ComponentStore<{ toDos: ToDo[] }>
+  ) { 
+
+    _componentStore.setState({ toDos: [] });
+  }
 
   public edit(toDo: ToDo) {
     const component = this._dialogService.open<ToDoDetailComponent>(ToDoDetailComponent);
@@ -50,9 +82,7 @@ export class ToDoListComponent implements OnDestroy {
     component.saved
     .pipe(
       takeUntil(this._destroyed),
-      tap(x => {
-        this._toDos$.next(replace({ items: this._toDos$.value, value: x, key: "toDoId" }));
-      })
+      tap(x => this.updateToDo(x))
     ).subscribe();
     
   }
@@ -62,14 +92,12 @@ export class ToDoListComponent implements OnDestroy {
     .saved
     .pipe(
       takeUntil(this._destroyed),
-      tap(x => {
-        this._toDos$.next([...this._toDos$.value, x]);
-      })
+      tap(x => this.createToDo(x))
     ).subscribe();
   }
 
   public delete(toDo: ToDo) {    
-    this._toDos$.next(pluckOut({ items: this._toDos$.value, value: toDo, key: "toDoId" }));
+    this.deleteToDo(toDo);
     this._toDoService.remove({ toDo }).pipe(
       takeUntil(this._destroyed) 
     ).subscribe();
