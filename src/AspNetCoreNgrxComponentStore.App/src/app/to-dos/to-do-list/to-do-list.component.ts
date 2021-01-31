@@ -22,9 +22,7 @@ import { ComponentStore } from '@ngrx/component-store';
 export class ToDoListComponent implements OnDestroy {
 
   private readonly _destroyed: Subject<void> = new Subject();
-
-  private readonly setToDos = this._componentStore.updater((state, value: ToDo[]) => ({ ...state, toDos: value }));
-
+  
   private readonly createToDo = this._componentStore.updater((state: { toDos: ToDo[] },toDo: ToDo) => {    
     state.toDos.push(toDo);
     return {
@@ -44,7 +42,6 @@ export class ToDoListComponent implements OnDestroy {
     }
   });
 
-  
   public readonly vm$: Observable<{
     dataSource$: Observable<MatTableDataSource<ToDo>>,
     columnsToDisplay: string[]
@@ -55,7 +52,7 @@ export class ToDoListComponent implements OnDestroy {
   .pipe(
     map(([toDos, columnsToDisplay]) => {
 
-      this.setToDos(toDos);
+      this._componentStore.setState({ toDos });
 
       return {
         dataSource$: this._componentStore.select((state) => ({
@@ -71,10 +68,7 @@ export class ToDoListComponent implements OnDestroy {
     private readonly _toDoService: ToDoService,
     private readonly _dialogService: DialogService,
     private readonly _componentStore: ComponentStore<{ toDos: ToDo[] }>
-  ) { 
-
-    _componentStore.setState({ toDos: [] });
-  }
+  ) { }
 
   public edit(toDo: ToDo) {
     const component = this._dialogService.open<ToDoDetailComponent>(ToDoDetailComponent);
@@ -84,7 +78,6 @@ export class ToDoListComponent implements OnDestroy {
       takeUntil(this._destroyed),
       tap(x => this.updateToDo(x))
     ).subscribe();
-    
   }
 
   public create() {
