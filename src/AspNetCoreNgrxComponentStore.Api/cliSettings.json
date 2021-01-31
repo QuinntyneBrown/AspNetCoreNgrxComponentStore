@@ -1,0 +1,1 @@
+{"RootNamespace":"AspNetCoreNgrxComponentStore","Namespace":"AspNetCoreNgrxComponentStore.Api","Domain":"AspNetCoreNgrxComponentStore.Domain","Api":"AspNetCoreNgrxComponentStore.Api","Core":"AspNetCoreNgrxComponentStore.Core","EntityIdDataType":"Guid"}
