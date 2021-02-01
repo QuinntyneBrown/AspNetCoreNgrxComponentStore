@@ -7,6 +7,11 @@ using Microsoft.OpenApi.Models;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
+using Scrutor;
+using FluentValidation;
+using AspNetCoreNgrxComponentStore.Api.Features;
+using System.Reflection;
+using System.Linq;
 
 namespace AspNetCoreNgrxComponentStore.Api
 {
@@ -45,17 +50,21 @@ namespace AspNetCoreNgrxComponentStore.Api
                 .SetIsOriginAllowed(isOriginAllowed: _ => true)
                 .AllowCredentials()));
 
-            services.AddHttpContextAccessor();
+            services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
+            foreach (var requestType in GetAllTypesImplementingOpenGenericType(typeof(IRequest<>),Assembly.GetExecutingAssembly()))
+            {
+                var validatorType = typeof(IValidator<>).MakeGenericType(requestType);
+
+                foreach(var validatorImpl in Assembly.GetExecutingAssembly().GetTypes().Where(v => validatorType.IsAssignableFrom(v)))
+                {
+                    services.AddTransient(validatorType, validatorImpl);
+                }
+            }
 
             services.AddMediatR(typeof(Startup));
 
             services.AddTransient<IAspNetCoreNgrxComponentStoreDbContext, AspNetCoreNgrxComponentStoreDbContext>();
-
-            var jwtSecurityTokenHandler = new JwtSecurityTokenHandler
-            {
-                InboundClaimTypeMap = new Dictionary<string, string>()
-            };
 
             services.AddDbContext<AspNetCoreNgrxComponentStoreDbContext>(options =>
             {
@@ -63,6 +72,19 @@ namespace AspNetCoreNgrxComponentStore.Api
             });
 
             services.AddControllers();
+        }
+
+        public static IEnumerable<Type> GetAllTypesImplementingOpenGenericType(Type openGenericType, Assembly assembly)
+        {
+            return from x in assembly.GetTypes()
+                   from z in x.GetInterfaces()
+                   let y = x.BaseType
+                   where
+                   (y != null && y.IsGenericType &&
+                   openGenericType.IsAssignableFrom(y.GetGenericTypeDefinition())) ||
+                   (z.IsGenericType &&
+                   openGenericType.IsAssignableFrom(z.GetGenericTypeDefinition()))
+                   select x;
         }
     }
 }

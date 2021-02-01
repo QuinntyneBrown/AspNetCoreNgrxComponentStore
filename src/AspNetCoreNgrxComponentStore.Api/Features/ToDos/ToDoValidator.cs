@@ -6,7 +6,9 @@ namespace AspNetCoreNgrxComponentStore.Api.Features
     {
         public ToDoValidator()
         {
-            
+            RuleFor(x => x.Name)
+                .NotNull()
+                .NotEmpty();
         }
     }
 }
